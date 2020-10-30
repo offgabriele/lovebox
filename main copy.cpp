@@ -6,25 +6,54 @@
 #include <HTTPUpdate.h>
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
-#include "version.h"
-#include "SPI.h"
-#include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
 
-#define _cs   15  // goes to TFT CS
-#define _dc   2  // goes to TFT DC
-#define _mosi 23  // goes to TFT MOSI
-#define _sclk 18  // goes to TFT SCK/CLK
-#define _rst  4   // goes to TFT RESET
-#define _miso     // Not connected
+const char FIRMWARE_VERSION[] = ("0-0-1");
+const char* fingerprint = "03 D6 42 23 03 D1 0C 06 73 F7 E2 BD 29 47 13 C3 22 71 37 1B";
+const char* rootCACertificate = \
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIFnDCCBISgAwIBAgIRAPDL8o/fIlacCAAAAAAv7iIwDQYJKoZIhvcNAQELBQAw\n" \
+"QjELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFUdvb2dsZSBUcnVzdCBTZXJ2aWNlczET\n" \
+"MBEGA1UEAxMKR1RTIENBIDFPMTAeFw0yMDAyMjAxOTM2MDZaFw0yMTAyMTgxOTM2\n" \
+"MDZaMGgxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQH\n" \
+"Ew1Nb3VudGFpbiBWaWV3MRMwEQYDVQQKEwpHb29nbGUgTExDMRcwFQYDVQQDEw5m\n" \
+"aXJlYmFzZWlvLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAN9R\n" \
+"hBIBdkeJFsy84i71J+TSRC0699jyn/JElfSpV/TYsmbrgzYdtZSZoCE+F85kWmHr\n" \
+"fy/wXL1EWgO54XSnvSjwUZ5ZzphbZuMOASJQo6qeVzXQrBH2LVinE8RJ+jyJZWBu\n" \
+"+egQlXE3SvoRD08b+n2M2+wvStTuKoalLxFEheNrbpSpvlrG/TCC7rsrPGm9Kzrn\n" \
+"gxXBPLarq2LcE/ibUUHfIcZwuk298HdgFjRWD8+1zykkRg0hBuY3C02ujsiNLkN+\n" \
+"gSBQLHD2VRIsewFiG7MvZsEdYYxWEwywkDoKAgBMIhszFDXf3UHDGmp96j7scz5P\n" \
+"+1pGQJgQNU2Kc6s7Y+kCAwEAAaOCAmUwggJhMA4GA1UdDwEB/wQEAwIFoDATBgNV\n" \
+"HSUEDDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBTaIo3cokKr\n" \
+"ewVKbvbTYD7SWCwTQjAfBgNVHSMEGDAWgBSY0fhuEOvPm+xgnxiQG6DrfQn9KzBk\n" \
+"BggrBgEFBQcBAQRYMFYwJwYIKwYBBQUHMAGGG2h0dHA6Ly9vY3NwLnBraS5nb29n\n" \
+"L2d0czFvMTArBggrBgEFBQcwAoYfaHR0cDovL3BraS5nb29nL2dzcjIvR1RTMU8x\n" \
+"LmNydDArBgNVHREEJDAigg5maXJlYmFzZWlvLmNvbYIQKi5maXJlYmFzZWlvLmNv\n" \
+"bTAhBgNVHSAEGjAYMAgGBmeBDAECAjAMBgorBgEEAdZ5AgUDMC8GA1UdHwQoMCYw\n" \
+"JKAioCCGHmh0dHA6Ly9jcmwucGtpLmdvb2cvR1RTMU8xLmNybDCCAQMGCisGAQQB\n" \
+"1nkCBAIEgfQEgfEA7wB1APZclC/RdzAiFFQYCDCUVo7jTRMZM7/fDC8gC8xO8WTj\n" \
+"AAABcGRQkc4AAAQDAEYwRAIgAqAKqje0yTE/6UGDNWPv0+5F4tnO5A7opAGi/JyR\n" \
+"UfECIGArAusuTUnG4NKHM7C67015o766qReSFmomT/wAUFxRAHYARJRlLrDuzq/E\n" \
+"QAfYqP4owNrmgr7YyzG1P9MzlrW2gagAAAFwZFCSJwAABAMARzBFAiBNBYTgBcqm\n" \
+"FFGdxj5dhNamhICADLcc3Ubic2FAweOQ0QIhAM1MtmXumV+xvh3WRYMM9DOrXIR7\n" \
+"6qzQYcdI8s5EnNdkMA0GCSqGSIb3DQEBCwUAA4IBAQCTa6t2LdK7gRuRKEl4vY/r\n" \
+"NhPmbPLkkiZoCeYFjsvXYmo/HpeMR1etRi4WpXgno0lG8a52YIPBu3VlGJvHterX\n" \
+"+SRNkPy5V+3Bc2qI6kGr/AzTljmOVsqjo0Xp1nCtHOUVFQZ0HrnGDVEKrjFvCT9Q\n" \
+"aVkHQ/9ua+0Boxz9TiGdBeu4dI2nQ9uyxQJ56wqNGrkIOQ76bUsFkqYVk/6HgcmA\n" \
+"rFYBGtQHhfFw/HZXfe9+eD3F6f4P1S7TuCcGtIVYsvU/izHf9qpbC6sDnAqy+8KQ\n" \
+"r/sioXuPbGT4x7SFahcrkczLB3V9/vV2yNKejsE32edzyjx6BFnqWciTi8t6eFHA\n" \
+"-----END CERTIFICATE-----\n";
 
-const char *FIRMWARE_VERSION = _FIRMWARE_VERSION;
-
-Adafruit_ILI9341 tft = Adafruit_ILI9341(_cs, _dc, _mosi, _sclk, _rst);
 // Allocate a 1024-byte buffer for the JSON document.
 StaticJsonDocument<1024> jsonDoc;
 HTTPClient http;
 void updateFirmware(String firmwareUrl) {
+  http.begin(firmwareUrl, fingerprint);
+  int httpCode = http.GET();
+  if (httpCode <= 0) {
+    Serial.printf("HTTP failed, error: %s\n", 
+       http.errorToString(httpCode).c_str());
+    return;
+  }
   WiFiClientSecure client;
   //client.setCACert(rootCACertificate);
   client.setTimeout(12000 / 1000);
@@ -48,7 +77,7 @@ void updateFirmware(String firmwareUrl) {
 void startFirmwareUpdate(String firmwareVersion) {  
   String url = "https://lovebox-offgabriele.firebaseio.com/firmware/" +
      firmwareVersion + ".json";
-  //Serial.println(url);
+  Serial.println(url);
   http.setTimeout(1000);
   http.begin(url);
   int status = http.GET();
@@ -68,8 +97,8 @@ void startFirmwareUpdate(String firmwareVersion) {
 void readConfig() {
  String url = "https://lovebox-offgabriele.firebaseio.com/config/" +
     WiFi.macAddress() + ".json";
-  //Serial.println(url);
- http.setTimeout(100000);
+  Serial.println(url);
+ http.setTimeout(10000);
  http.begin(url);
  int status = http.GET();
  if (status <= 0) {
@@ -78,72 +107,23 @@ void readConfig() {
    return;
  }
  String payload = http.getString();
- //Serial.println(payload);
+ Serial.println(payload);
  DeserializationError err = deserializeJson(jsonDoc, payload);      
  JsonObject jobj = jsonDoc.as<JsonObject>();
  const char *nextVersion = (const char *)jobj["version"];
+ Serial.println(nextVersion);
  if (strcmp(nextVersion, FIRMWARE_VERSION) &&          
      strcmp(nextVersion, "none") &&        
      strcmp(nextVersion, "") &&        
      strcmp(nextVersion, "current")) {      
-   Serial.println("OTA: Update required to " + String(nextVersion));
    startFirmwareUpdate(nextVersion);
  }
  else {
-  Serial.println("OTA: Latest version installed");
+  Serial.println("Latest version installed");
 }
 }
 
-void showMessage (const char * message) {
 
-  tft.begin();tft.setRotation(3);tft.fillScreen(ILI9341_BLACK); tft.setTextSize(2);tft.println(message);delay(1000);
-  delay(10000);
-  HTTPClient http;   
- 
-   http.begin("https://lovebox-offgabriele.firebaseio.com/messages/latest.json");
-   http.addHeader("Content-Type", "application/json");       
-
-   String json_string = "{'displayed':'true'}";
-   int httpResponseCode = http.PATCH("{\"displayed\":\"true\"}");   
- 
-   if(httpResponseCode>0){
- 
-    String response = http.getString();   
- 
-    Serial.println(httpResponseCode);
-    Serial.println(response);          
- 
-   }else{
- 
-    Serial.print("Error on sending PUT Request: ");
-    Serial.println(httpResponseCode);
- 
-   }
- 
-   http.end();
-}
-
-void newMessage() {
-  String url = "https://lovebox-offgabriele.firebaseio.com/messages/latest.json";
-  Serial.println(url);
-  http.setTimeout(100000);
-  http.begin(url);
-  int status = http.GET();
-  if (status <= 0) {
-   Serial.printf("HTTP error: %s\n", 
-       http.errorToString(status).c_str());
-   return;
-  }
-  String payload = http.getString();
-  DeserializationError err = deserializeJson(jsonDoc, payload);      
-  JsonObject jobj = jsonDoc.as<JsonObject>();
-  const char *nowmessage = (const char *)jobj["displayed"];
-  Serial.println(nowmessage);
-  if(strcmp(nowmessage, "true")) {
-    const char *newMessageString = (const char *)jobj["message"];
-    showMessage(newMessageString);
-  }
-}
 
 
 // Set web server port number to 80
@@ -161,11 +141,8 @@ const int output5 = 5;
 const int output4 = 4;
 
 void setup() {
-
   Serial.begin(115200);
-  Serial.println();
-  Serial.println();
-  Serial.println("Lovebox. Running version: " + String(FIRMWARE_VERSION));
+  
   // Initialize the output variables as outputs
   pinMode(output5, OUTPUT);
   pinMode(output4, OUTPUT);
@@ -199,14 +176,10 @@ void setup() {
 }
 
 void loop() {
-
-
-    // Fill screen with grey so we can see the effect of printing with and without 
-  // a background colour defined
-
-  readConfig();
-  newMessage();
-  delay(10000);
  
 
+  Serial.println("ciaogab");
+
+  delay(10000);
+ 
 }
