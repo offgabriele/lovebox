@@ -7,14 +7,12 @@
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 #include "version.h"
-#include <TFT_eSPI.h> // Graphics and font library for ILI9341 driver chip
-#include <SPI.h>
 #include <Servo.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #define FS_NO_GLOBALS
 #include <FS.h>
-
+//#include "Web_Fetch.h"
 #ifdef ESP32
 #include "SPIFFS.h" // Needed for ESP32 only
 #endif
@@ -43,6 +41,7 @@ const char *FIRMWARE_VERSION = _FIRMWARE_VERSION;
 WiFiUDP ntpUDP;
 
 NTPClient timeClient(ntpUDP, "it.pool.ntp.org");
+
 
 StaticJsonDocument<1024> jsonDoc;  // Allocate a 1024-byte buffer for the JSON document.
 
@@ -128,7 +127,18 @@ void readConfig() {
 bool isRead() {
   int rawValue = analogRead(36);
   Serial.println(rawValue);
-  if (rawValue > 1000) {
+  putData("light");
+  if (rawValue > 800) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool isClose(int var) {
+  int rawValue = analogRead(36);
+  Serial.println(rawValue);
+  if (rawValue > (var - 50) && rawValue < (var + 50)) {
     return true;
   } else {
     return false;
@@ -139,13 +149,67 @@ void spinServo() {
   for (pos = 0; pos <= 180; pos += 1) { // goes from 0 degrees to 180 degrees
     // in steps of 1 degree
     myservo.write(pos);              // tell servo to go to position in variable 'pos'
-    delay(15);                       // waits 15ms for the servo to reach the position
+    delay(5);                       // waits 15ms for the servo to reach the position
   }
   for (pos = 180; pos >= 0; pos -= 1) { // goes from 180 degrees to 0 degrees
     myservo.write(pos);              // tell servo to go to position in variable 'pos'
-    delay(15);                       // waits 15ms for the servo to reach the position
+    delay(5);                       // waits 15ms for the servo to reach the position
   }
 }
+
+String stamp() {
+  timeClient.update();
+  Serial.println(timeClient.getFormattedTime());
+  String time_stamp = timeClient.getFormattedDate();
+  time_stamp.replace("-", "/");
+  time_stamp.replace("T", " ");
+  time_stamp.replace("Z", " ");
+  return time_stamp;
+}
+
+void putData(String type) {
+  HTTPClient http;
+  timeClient.update();
+  Serial.println(timeClient.getFormattedTime());
+  http.addHeader("Content-Type", "application/json");
+  String payload;
+  String url;
+  if (type == "display") {
+    payload = "{\"displayed\":\"true\",\"timedisplayed\":\"";
+    url = "https://lovebox-offgabriele.firebaseio.com/messages/latest.json";
+  } else if (type == "read") {
+    payload = "{\"read\":\"true\",\"timeread\":\"";
+    url = "https://lovebox-offgabriele.firebaseio.com/messages/latest.json";
+  } else if (type == "version") {
+    payload = "{\"installedversion\":\"";
+    payload += FIRMWARE_VERSION;
+    payload += ",\"timecheck\":\"";
+    url = "https://lovebox-offgabriele.firebaseio.com/config/" +
+          WiFi.macAddress() + ".json";
+  } else if (type == "light") {
+    payload = "{\"lightvalue\":\"";
+    payload += analogRead(36);
+    payload += "\",\"timecheck\":\"";
+    url = "https://lovebox-offgabriele.firebaseio.com/config/" +
+          WiFi.macAddress() + ".json";
+  }
+  payload += stamp();
+  payload += "\"}";
+  Serial.println(payload);
+  http.begin(url);
+  int httpResponseCode = http.PATCH(payload);
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    Serial.println(httpResponseCode);
+    Serial.println(response);
+  } else {
+    Serial.print("Error on sending PUT Request: ");
+    Serial.println(httpResponseCode);
+  }
+
+  http.end();
+}
+
 
 void showMessage (const char *message) {
   int x, y;
@@ -153,46 +217,114 @@ void showMessage (const char *message) {
   tft.fillScreen(BLACK);
   tft.setTextSize(2); tft.setTextFont(2);
   uint16_t len = tft.textWidth(message);
-  tft.setCursor(pos, 120, 2); tft.setTextSize(2); tft.print(message);
+  uint16_t pos = 160 - (len / 2);
+  tft.setCursor(pos, 120, 2); tft.setTextSize(2);
+  tft.print(message);
+  putData("display");
+  int light = analogRead(36);
   while (!isRead()) {
     spinServo();
   }
-  HTTPClient http;
-  timeClient.update();
-
-  Serial.println(timeClient.getFormattedTime());
-
-  http.begin("https://lovebox-offgabriele.firebaseio.com/messages/latest.json");
-  http.addHeader("Content-Type", "application/json");
-  timeClient.update();
-  Serial.println(timeClient.getFormattedTime());
-  String time_stamp = timeClient.getFormattedTime();
-  String payload = "{\"displayed\":\"true\",\"time\":\"";
-  payload += time_stamp;
-  payload += "\"}";
-  Serial.println(payload);
-  int httpResponseCode = http.PATCH(payload);
-  if (httpResponseCode > 0) {
-
-    String response = http.getString();
-
-    Serial.println(httpResponseCode);
-    Serial.println(response);
-
-  } else {
-
-    Serial.print("Error on sending PUT Request: ");
-    Serial.println(httpResponseCode);
-
-  }
-
-  http.end();
-  while (isRead()) {
+  putData("read");
+  while (!isClose(light)) {
     Serial.println("Aspettando");
   }
   fex.drawJpgFile(SPIFFS, "/logo2.jpg", 0, 0);
 }
 
+void showImage (const char *url, const char *filename) {
+  tft.fillScreen(BLACK);
+  String s((const __FlashStringHelper*) url);
+  String r((const __FlashStringHelper*) filename);
+  bool downloadok = getFile(url, filename);
+  fex.drawJpgFile(SPIFFS, filename, 0, 0);
+  putData("display");
+  int light = analogRead(36);
+  while (!isRead()) {
+    spinServo();
+  }
+  putData("read");
+  while (!isClose(light)) {
+    Serial.println("Aspettando");
+  }
+  fex.drawJpgFile(SPIFFS, "/logo2.jpg", 0, 0);
+}
+
+bool getFile(String url, String filename) {
+
+  // If it exists then no need to fetch it
+  if (SPIFFS.exists(filename) == true) {
+    Serial.println("Found " + filename);
+    return 0;
+  }
+
+  Serial.println("Downloading "  + filename + " from " + url);
+
+  // Check WiFi connection
+  if ((WiFi.status() == WL_CONNECTED)) {
+    HTTPClient http;
+
+    Serial.print("[HTTP] begin...\n");
+
+    // Configure server and url
+    http.begin(url);
+
+    Serial.print("[HTTP] GET...\n");
+    // Start connection and send HTTP header
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      fs::File f = SPIFFS.open(filename, "w+");
+      if (!f) {
+        Serial.println("file open failed");
+        return 0;
+      }
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+      // File found at server
+      if (httpCode == HTTP_CODE_OK) {
+
+        // Get length of document (is -1 when Server sends no Content-Length header)
+        int total = http.getSize();
+        int len = total;
+
+        // Create buffer for read
+        uint8_t buff[128] = { 0 };
+
+        // Get tcp stream
+        WiFiClient * stream = http.getStreamPtr();
+
+        // Read all data from server
+        while (http.connected() && (len > 0 || len == -1)) {
+          // Get available data size
+          size_t size = stream->available();
+
+          if (size) {
+            // Read up to 128 bytes
+            int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+
+            // Write it to file
+            f.write(buff, c);
+
+            // Calculate remaining bytes
+            if (len > 0) {
+              len -= c;
+            }
+          }
+          yield();
+        }
+        Serial.println();
+        Serial.print("[HTTP] connection closed or file end.\n");
+      }
+      f.close();
+    }
+    else {
+      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+    http.end();
+  }
+  return 1; // File was fetched from web
+}
 
 void newMessage() {
   String url = "https://lovebox-offgabriele.firebaseio.com/messages/latest.json";
@@ -212,6 +344,12 @@ void newMessage() {
   Serial.println(nowmessage);
   if (strcmp(nowmessage, "true")) {
     const char *newMessageString = (const char *)jobj["message"];
+    const char *type = (const char *)jobj["type"];
+    if (type == "image") {
+      const char *url = (const char *)jobj["url"];
+      const char *filename = (const char *)jobj["name"];
+      showImage(url, filename);
+    }
     showMessage(newMessageString);
   }
 }
@@ -271,14 +409,6 @@ void setup() {
   // Uncomment and run it once, if you want to erase all the stored information
   //wifiManager.resetSettings();
 
-  // set custom ip for portal
-  //wifiManager.setAPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
-
-  // fetches ssid and pass from eeprom and tries to connect
-
-  // if it does not connect it starts an access point with the specified name
-  // here  "AutoConnectAP"
-  // and goes into a blocking loop awaiting configuration
   wifiManager.autoConnect("LOVEBOX.configure");
   // or use this for auto generated name ESP + ChipID
   //wifiManager.autoConnect();
@@ -286,20 +416,18 @@ void setup() {
   // if you get here you have connected to the WiFi
   Serial.println("Connected.");
   timeClient.begin();
+  timeClient.setTimeOffset(3600);
   server.begin();
   readConfig();
 }
 
 void loop() {
 
-
-  // Fill screen with grey so we can see the effect of printing with and without
-  // a background colour defined
   //isRead();
-  spinServo();
+  //spinServo();
   readConfig();
-  //newMessage();
-  //delay(10000);
+  newMessage();
+  delay(10000);
 
 
 }

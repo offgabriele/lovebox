@@ -45,6 +45,6 @@ users_ref.set({
 
 ref = db.reference('config')
 users_ref = ref.child('24:6F:28:B3:58:50')
-users_ref.set({
+users_ref.update({
     'version' : version,
 })

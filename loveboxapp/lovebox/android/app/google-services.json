@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "320431357037",
+    "firebase_url": "https://lovebox-offgabriele.firebaseio.com",
+    "project_id": "lovebox-offgabriele",
+    "storage_bucket": "lovebox-offgabriele.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:320431357037:android:d94bc4b79cf8ffbc4d9364",
+        "android_client_info": {
+          "package_name": "com.offgabriele.lovebox"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "320431357037-p9dnfqo1lr755hc1fch35d6uk34qaetv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLKNQolBy8v7lG6KOymZODnWy0XtmcZ7s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "320431357037-p9dnfqo1lr755hc1fch35d6uk34qaetv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
